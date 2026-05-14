@@ -1,0 +1,187 @@
+const form = document.getElementById("form-gasto");
+const lista = document.getElementById("lista-gastos");
+const totalEl = document.getElementById("total");
+const saldoEl = document.getElementById("saldo");
+
+let gastos = JSON.parse(localStorage.getItem("gastos")) || [];
+let renda = Number(localStorage.getItem("renda")) || 0;
+let grafico;
+
+// ------------------ SALVAR ------------------
+function salvarLocal() {
+    localStorage.setItem("gastos", JSON.stringify(gastos));
+    localStorage.setItem("renda", JSON.stringify(renda));
+}
+
+// ------------------ RENDA ------------------
+function salvarRenda() {
+    const input = document.getElementById("renda");
+
+    const valor = Number(input.value);
+
+    if (!valor || valor <= 0) {
+        alert("Digite uma renda válida");
+        return;
+    }
+
+    renda = valor;
+
+    localStorage.setItem("renda", renda);
+
+    console.log("Renda salva:", renda);
+
+    atualizarTela();
+}
+
+// ------------------ ATUALIZAR TELA ------------------
+function atualizarTela() {
+    lista.innerHTML = "";
+
+    let total = 0;
+
+    gastos.forEach(gasto => {
+        const valor = Number(gasto.valor) || 0;
+        total += valor;
+
+        const li = document.createElement("li");
+
+        li.innerHTML = `
+      <div class="info">
+        <span>${gasto.nome}</span>
+        <small>${gasto.categoria} • ${gasto.data}</small>
+      </div>
+
+      <div>
+        <span class="valor">R$ ${valor.toFixed(2)}</span>
+        <button class="remover" onclick="remover(${gasto.id})">X</button>
+      </div>
+    `;
+
+        lista.appendChild(li);
+    });
+
+    // Garantir número
+    const rendaNum = Number(renda) || 0;
+
+    // Cálculo correto do saldo
+    const saldo = rendaNum - total;
+
+    // Atualizar UI
+    totalEl.textContent = "R$ " + total.toFixed(2);
+    saldoEl.textContent = "R$ " + saldo.toFixed(2);
+
+    // Cor dinâmica
+    saldoEl.style.color = saldo >= 0 ? "#22c55e" : "#ef4444";
+
+    // DEBUG (pode remover depois)
+    console.log("Renda:", rendaNum);
+    console.log("Total gastos:", total);
+    console.log("Saldo:", saldo);
+}
+
+// ------------------ REMOVER ------------------
+function remover(id) {
+    gastos = gastos.filter(g => g.id !== id);
+    salvarLocal();
+    atualizarTela();
+}
+
+// ------------------ ADICIONAR GASTO ------------------
+form.addEventListener("submit", (e) => {
+    e.preventDefault();
+
+    const nome = document.getElementById("nome").value;
+    const valor = parseFloat(document.getElementById("valor").value);
+    const categoria = document.getElementById("categoria").value;
+    const data = document.getElementById("data").value;
+
+    if (!nome || isNaN(valor) || !data) return;
+
+    const novoGasto = {
+        id: Date.now(),
+        nome,
+        valor,
+        categoria,
+        data
+    };
+
+    gastos.push(novoGasto);
+
+    salvarLocal();
+    atualizarTela();
+
+    form.reset();
+});
+
+// ------------------ INICIALIZAÇÃO ------------------
+atualizarTela();
+
+atualizarGrafico();
+
+document.getElementById("renda").value = renda;
+
+// ------------------ ATUALIZAR GRÁFICO ------------------
+function atualizarGrafico() {
+    const categorias = {};
+
+    gastos.forEach(gasto => {
+        const cat = gasto.categoria;
+        const valor = Number(gasto.valor) || 0;
+
+        if (categorias[cat]) {
+            categorias[cat] += valor;
+        } else {
+            categorias[cat] = valor;
+        }
+    });
+
+    const labels = Object.keys(categorias);
+    const valores = Object.values(categorias);
+
+    const ctx = document.getElementById("grafico").getContext("2d");
+
+    // destruir gráfico antigo (IMPORTANTE)
+    if (grafico) {
+        grafico.destroy();
+    }
+
+    grafico = new Chart(ctx, {
+        type: "doughnut",
+        data: {
+            labels: labels,
+            datasets: [{
+                data: valores,
+                backgroundColor: [
+                    "#22c55e",
+                    "#3b82f6",
+                    "#f59e0b",
+                    "#ef4444",
+                    "#a855f7"
+                ]
+            }]
+        }
+    });
+
+    async function carregarCotacao() {
+        try {
+            const resposta = await fetch(
+                "https://economia.awesomeapi.com.br/json/last/USD-BRL"
+            );
+
+            const dados = await resposta.json();
+
+            const valor = Number(dados.USDBRL.bid).toFixed(2);
+
+            document.getElementById(
+                "cotacao"
+            ).innerText = `US$ 1 = R$ ${valor}`;
+        } catch (erro) {
+            document.getElementById(
+                "cotacao"
+            ).innerText = "Erro ao carregar cotação.";
+        }
+    }
+
+    carregarCotacao();
+
+}
