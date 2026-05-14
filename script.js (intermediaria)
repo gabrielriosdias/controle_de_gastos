@@ -1,77 +1,187 @@
-<!DOCTYPE html>
-<html lang="pt-br">
+const form = document.getElementById("form-gasto");
+const lista = document.getElementById("lista-gastos");
+const totalEl = document.getElementById("total");
+const saldoEl = document.getElementById("saldo");
 
-<head>
-    <meta charset="UTF-8">
-    <title>Controle de Gastos</title>
-    <link rel="stylesheet" href="style.css">
-</head>
+let gastos = JSON.parse(localStorage.getItem("gastos")) || [];
+let renda = Number(localStorage.getItem("renda")) || 0;
+let grafico;
 
-<body>
+// ------------------ SALVAR ------------------
+function salvarLocal() {
+    localStorage.setItem("gastos", JSON.stringify(gastos));
+    localStorage.setItem("renda", JSON.stringify(renda));
+}
 
-    <div class="app">
+// ------------------ RENDA ------------------
+function salvarRenda() {
+    const input = document.getElementById("renda");
 
-        <header>
-            <h1>💰 Controle de Gastos</h1>
-            <p>Gerencie suas finanças</p>
-        </header>
+    const valor = Number(input.value);
 
-        <section class="card total-card">
-            <h2>Total gasto</h2>
-            <span id="total">R$ 0,00</span>
-        </section>
+    if (!valor || valor <= 0) {
+        alert("Digite uma renda válida");
+        return;
+    }
 
-        <section class="card form-card">
-            <h2>Novo gasto</h2>
+    renda = valor;
 
-            <form id="form-gasto">
-                <input type="text" id="nome" placeholder="Descrição" required>
-                <input type="number" id="valor" placeholder="Valor" required>
+    localStorage.setItem("renda", renda);
 
-                <select id="categoria">
-          <option>🍔 Alimentação</option>
-          <option>🚗 Transporte</option>
-          <option>🎮 Lazer</option>
-          <option>📦 Outros</option>
-        </select>
+    console.log("Renda salva:", renda);
 
-                <input type="date" id="data" required>
+    atualizarTela();
+}
 
-                <button type="submit">Adicionar gasto</button>
-            </form>
-        </section>
+// ------------------ ATUALIZAR TELA ------------------
+function atualizarTela() {
+    lista.innerHTML = "";
 
-        <section class="card lista-card">
-            <h2>Histórico</h2>
-            <ul id="lista-gastos"></ul>
-        </section>
+    let total = 0;
 
-    </div>
+    gastos.forEach(gasto => {
+        const valor = Number(gasto.valor) || 0;
+        total += valor;
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="script.js" defer></script>
+        const li = document.createElement("li");
 
-    <section class="card renda-card">
-        <h2>Renda mensal</h2>
+        li.innerHTML = `
+      <div class="info">
+        <span>${gasto.nome}</span>
+        <small>${gasto.categoria} • ${gasto.data}</small>
+      </div>
 
-        <input type="number" id="renda" placeholder="Digite sua renda">
-        <button onclick="salvarRenda()">Salvar renda</button>
-    </section>
+      <div>
+        <span class="valor">R$ ${valor.toFixed(2)}</span>
+        <button class="remover" onclick="remover(${gasto.id})">X</button>
+      </div>
+    `;
 
-    <section class="card total-card">
-        <h2>Saldo</h2>
-        <span id="saldo">R$ 0,00</span>
-    </section>
-</body>
+        lista.appendChild(li);
+    });
 
-<section class="card">
-    <h2>Gastos por categoria</h2>
-    <canvas id="grafico"></canvas>
-</section>
+    // Garantir número
+    const rendaNum = Number(renda) || 0;
 
-<section class="card cotacao-card">
-    <h2>Cotação do Dólar</h2>
-    <p id="cotacao">Carregando...</p>
-</section>
+    // Cálculo correto do saldo
+    const saldo = rendaNum - total;
 
-</html>
+    // Atualizar UI
+    totalEl.textContent = "R$ " + total.toFixed(2);
+    saldoEl.textContent = "R$ " + saldo.toFixed(2);
+
+    // Cor dinâmica
+    saldoEl.style.color = saldo >= 0 ? "#22c55e" : "#ef4444";
+
+    // DEBUG (pode remover depois)
+    console.log("Renda:", rendaNum);
+    console.log("Total gastos:", total);
+    console.log("Saldo:", saldo);
+}
+
+// ------------------ REMOVER ------------------
+function remover(id) {
+    gastos = gastos.filter(g => g.id !== id);
+    salvarLocal();
+    atualizarTela();
+}
+
+// ------------------ ADICIONAR GASTO ------------------
+form.addEventListener("submit", (e) => {
+    e.preventDefault();
+
+    const nome = document.getElementById("nome").value;
+    const valor = parseFloat(document.getElementById("valor").value);
+    const categoria = document.getElementById("categoria").value;
+    const data = document.getElementById("data").value;
+
+    if (!nome || isNaN(valor) || !data) return;
+
+    const novoGasto = {
+        id: Date.now(),
+        nome,
+        valor,
+        categoria,
+        data
+    };
+
+    gastos.push(novoGasto);
+
+    salvarLocal();
+    atualizarTela();
+
+    form.reset();
+});
+
+// ------------------ INICIALIZAÇÃO ------------------
+atualizarTela();
+
+atualizarGrafico();
+
+document.getElementById("renda").value = renda;
+
+// ------------------ ATUALIZAR GRÁFICO ------------------
+function atualizarGrafico() {
+    const categorias = {};
+
+    gastos.forEach(gasto => {
+        const cat = gasto.categoria;
+        const valor = Number(gasto.valor) || 0;
+
+        if (categorias[cat]) {
+            categorias[cat] += valor;
+        } else {
+            categorias[cat] = valor;
+        }
+    });
+
+    const labels = Object.keys(categorias);
+    const valores = Object.values(categorias);
+
+    const ctx = document.getElementById("grafico").getContext("2d");
+
+    // destruir gráfico antigo (IMPORTANTE)
+    if (grafico) {
+        grafico.destroy();
+    }
+
+    grafico = new Chart(ctx, {
+        type: "doughnut",
+        data: {
+            labels: labels,
+            datasets: [{
+                data: valores,
+                backgroundColor: [
+                    "#22c55e",
+                    "#3b82f6",
+                    "#f59e0b",
+                    "#ef4444",
+                    "#a855f7"
+                ]
+            }]
+        }
+    });
+
+    async function carregarCotacao() {
+        try {
+            const resposta = await fetch(
+                "https://economia.awesomeapi.com.br/json/last/USD-BRL"
+            );
+
+            const dados = await resposta.json();
+
+            const valor = Number(dados.USDBRL.bid).toFixed(2);
+
+            document.getElementById(
+                "cotacao"
+            ).innerText = `US$ 1 = R$ ${valor}`;
+        } catch (erro) {
+            document.getElementById(
+                "cotacao"
+            ).innerText = "Erro ao carregar cotação.";
+        }
+    }
+
+    carregarCotacao();
+
+}
