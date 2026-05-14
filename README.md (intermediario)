@@ -1,0 +1,19 @@
+# Controle de Gastos
+
+## Aplicação Online
+https://controle-de-gastos-mauve.vercel.app
+
+## Funcionalidades
+- Cadastro de gastos
+- Controle de saldo
+- Renda mensal
+- Histórico de despesas
+- Gráfico de categorias
+- Integração com API pública
+
+## Tecnologias
+- HTML
+- CSS
+- JavaScript
+- Chart.js
+- Vercel
